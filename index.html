@@ -1,0 +1,267 @@
+<div class="computer-chess-box">
+    <h2>♟ 𐙚 Play Against Computer 𐙚 ♟</h2>
+
+    <div id="chessBoard" class="chess-board"></div>
+
+    <div id="chessStatus" class="chess-status">
+        Your turn ♡
+    </div>
+
+    <button id="newChessGame" class="chess-new-game">
+        ↻ New Game
+    </button>
+</div>
+
+<style>
+.computer-chess-box{
+    background:#f1faef;
+    border:1px solid #e2f0df;
+    border-radius:24px;
+    padding:25px 18px;
+    text-align:center;
+    box-shadow:0 8px 24px rgba(80,110,80,.06);
+}
+
+.computer-chess-box h2{
+    color:#6f896f;
+    font-size:1.35rem;
+    margin-bottom:20px;
+}
+
+.chess-board{
+    width:min(100%,420px);
+    aspect-ratio:1;
+    margin:0 auto 18px;
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    border:5px solid #d7e5d3;
+    border-radius:8px;
+    overflow:hidden;
+}
+
+.chess-square{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    aspect-ratio:1;
+    font-size:clamp(25px,7vw,48px);
+    cursor:pointer;
+    user-select:none;
+}
+
+.chess-square.light{
+    background:#f4f1df;
+}
+
+.chess-square.dark{
+    background:#a9c7a1;
+}
+
+.chess-square.selected{
+    box-shadow:inset 0 0 0 4px #e7c978;
+}
+
+.chess-status{
+    color:#6f896f;
+    font-weight:bold;
+    margin:12px 0 17px;
+}
+
+.chess-new-game{
+    border:0;
+    border-radius:20px;
+    padding:11px 22px;
+    background:#ffffff;
+    color:#6f896f;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.chess-new-game:hover{
+    background:#e8f4e5;
+}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.4.0/chess.js"></script>
+
+<script>
+const game = new Chess();
+
+const board = document.getElementById("chessBoard");
+const status = document.getElementById("chessStatus");
+const newGame = document.getElementById("newChessGame");
+
+let selectedSquare = null;
+let thinking = false;
+
+const pieces = {
+    wK:"♔", wQ:"♕", wR:"♖", wB:"♗", wN:"♘", wP:"♙",
+    bK:"♚", bQ:"♛", bR:"♜", bB:"♝", bN:"♞", bP:"♟"
+};
+
+function drawBoard(){
+    board.innerHTML = "";
+
+    const files = ["a","b","c","d","e","f","g","h"];
+    const ranks = ["8","7","6","5","4","3","2","1"];
+
+    for(const rank of ranks){
+        for(const file of files){
+
+            const square = file + rank;
+            const piece = game.get(square);
+
+            const div = document.createElement("div");
+
+            const fileIndex = files.indexOf(file);
+            const rankIndex = ranks.indexOf(rank);
+
+            div.className =
+                "chess-square " +
+                ((fileIndex + rankIndex) % 2 === 0 ? "light" : "dark");
+
+            if(square === selectedSquare){
+                div.classList.add("selected");
+            }
+
+            if(piece){
+                div.textContent =
+                    pieces[piece.color + piece.type.toUpperCase()];
+            }
+
+            div.addEventListener("click", () => selectSquare(square));
+
+            board.appendChild(div);
+        }
+    }
+}
+
+function selectSquare(square){
+
+    if(thinking || game.isGameOver() || game.turn() !== "w"){
+        return;
+    }
+
+    if(selectedSquare){
+
+        try{
+            const move = game.move({
+                from:selectedSquare,
+                to:square,
+                promotion:"q"
+            });
+
+            if(move){
+                selectedSquare = null;
+                drawBoard();
+
+                if(game.isGameOver()){
+                    updateStatus();
+                    return;
+                }
+
+                thinking = true;
+                status.textContent = "Computer is thinking ♟";
+
+                setTimeout(computerMove, 300);
+                return;
+            }
+
+        }catch(error){
+            // Invalid move.
+        }
+    }
+
+    const piece = game.get(square);
+
+    if(piece && piece.color === "w"){
+        selectedSquare = square;
+        drawBoard();
+    }
+}
+
+function computerMove(){
+
+    if(game.isGameOver()){
+        thinking = false;
+        updateStatus();
+        return;
+    }
+
+    /*
+       Simple legal-move computer.
+       It chooses from the available legal moves.
+       This keeps the game completely self-contained.
+    */
+
+    const moves = game.moves({verbose:true});
+
+    if(!moves.length){
+        thinking = false;
+        updateStatus();
+        return;
+    }
+
+    let chosenMove = moves[Math.floor(Math.random() * moves.length)];
+
+    /*
+       Prefer captures when available.
+    */
+    const captures = moves.filter(move => move.captured);
+
+    if(captures.length){
+        chosenMove =
+            captures[Math.floor(Math.random() * captures.length)];
+    }
+
+    game.move({
+        from:chosenMove.from,
+        to:chosenMove.to,
+        promotion:"q"
+    });
+
+    thinking = false;
+    drawBoard();
+    updateStatus();
+}
+
+function updateStatus(){
+
+    if(game.isCheckmate()){
+        status.textContent =
+            game.turn() === "w"
+            ? "Checkmate — computer wins ♟"
+            : "Checkmate — you win! ♡";
+        return;
+    }
+
+    if(game.isDraw()){
+        status.textContent = "Draw ♡";
+        return;
+    }
+
+    if(game.inCheck()){
+        status.textContent =
+            game.turn() === "w"
+            ? "You're in check! ♟"
+            : "Computer is in check! ♡";
+        return;
+    }
+
+    status.textContent =
+        game.turn() === "w"
+        ? "Your turn ♡"
+        : "Computer's turn ♟";
+}
+
+newGame.addEventListener("click", () => {
+    game.reset();
+    selectedSquare = null;
+    thinking = false;
+    drawBoard();
+    updateStatus();
+});
+
+drawBoard();
+updateStatus();
+</script>
